@@ -7,18 +7,6 @@ import { AlertCircle } from 'lucide-react';
 import 'leaflet-control-geocoder/dist/Control.Geocoder.css';
 import 'leaflet-control-geocoder';
 
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
-
-let DefaultIcon = L.icon({
-  iconUrl: icon,
-  shadowUrl: iconShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-});
-L.Marker.prototype.options.icon = DefaultIcon;
-
 interface Location {
   latitude: number;
   longitude: number;
@@ -77,7 +65,7 @@ const Map: React.FC<MapProps> = ({
         attribution: '&copy; OpenStreetMap contributors',
       }).addTo(leafletMapRef.current);
 
-      // ✅ Add working search bar using Leaflet-Control-Geocoder
+      // Add search bar using Leaflet-Control-Geocoder
       if (L.Control.geocoder) {
         const geocoderControl = L.Control.geocoder({
           defaultMarkGeocode: true,
@@ -96,10 +84,21 @@ const Map: React.FC<MapProps> = ({
         const latlng = e.latlng;
         const location = { latitude: latlng.lat, longitude: latlng.lng };
 
+        // Create custom icon for user marker
+        const userIcon = L.divIcon({
+          html: `<div style="background-color: #3b82f6; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white;"></div>`,
+          className: 'custom-div-icon',
+          iconSize: [20, 20],
+          iconAnchor: [10, 10],
+        });
+
         if (userMarkerRef.current) {
           userMarkerRef.current.setLatLng(latlng);
         } else {
-          userMarkerRef.current = L.marker(latlng, { draggable: isAdmin })
+          userMarkerRef.current = L.marker(latlng, {
+            draggable: isAdmin,
+            icon: userIcon
+          })
             .addTo(leafletMapRef.current!)
             .bindPopup('You are here');
 
@@ -256,7 +255,7 @@ const Map: React.FC<MapProps> = ({
   }, [userLocations, mapInitialized]);
 
   useEffect(() => {
-    if (!centerLocation || !geofenceCircleRef.current) return;
+    if (!centerLocation || !geofenceCircleRef.current || !showGeofence) return;
 
     const userLat = centerLocation.latitude;
     const userLon = centerLocation.longitude;
@@ -279,7 +278,7 @@ const Map: React.FC<MapProps> = ({
         description: 'You are outside the attendance area.',
       });
     }
-  }, [centerLocation, geofenceRadius]);
+  }, [centerLocation, geofenceRadius, showGeofence]);
 
   return <div ref={mapRef} style={{ height: '100vh', width: '100%' }} />;
 };
