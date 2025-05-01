@@ -40,11 +40,11 @@ const StudentDashboard = () => {
       // 🔁 TOGGLE: Use mock location by commenting out this block
       //comment from here to 
       
-      // const mockLatitude = 17.520124;        //inside mock data
-      // const mockLongitude = 78.366163;  
+     // const mockLatitude = 17.520124;        //inside mock data
+     // const mockLongitude = 78.366163;  
 
-      const mockLatitude=17.517945;            //outside mock data
-      const mockLongitude = 78.372;
+       const mockLatitude=17.517945;            //outside mock data
+       const mockLongitude = 78.372;
       setCurrentLocation({ latitude: mockLatitude, longitude: mockLongitude });
       const distance = calculateDistance(
         mockLatitude,

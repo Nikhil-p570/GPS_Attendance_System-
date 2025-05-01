@@ -4,7 +4,9 @@ import 'leaflet/dist/leaflet.css';
 import { toast } from '@/components/ui/use-toast';
 import { AlertCircle } from 'lucide-react';
 
-// Fix Leaflet marker icon issue
+import 'leaflet-control-geocoder/dist/Control.Geocoder.css';
+import 'leaflet-control-geocoder';
+
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
@@ -15,7 +17,6 @@ let DefaultIcon = L.icon({
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
 });
-
 L.Marker.prototype.options.icon = DefaultIcon;
 
 interface Location {
@@ -29,16 +30,16 @@ interface MapProps {
   geofenceRadius?: number;
   onGeofenceChange?: (center: Location, radius: number) => void;
   centerLocation?: Location;
-  userLocations?: Array<{id: string, name: string, role: string, location: Location}>;
+  userLocations?: Array<{ id: string; name: string; role: string; location: Location }>;
 }
 
-const Map: React.FC<MapProps> = ({ 
-  isAdmin = false, 
-  showGeofence = false, 
-  geofenceRadius = 100, 
+const Map: React.FC<MapProps> = ({
+  isAdmin = false,
+  showGeofence = false,
+  geofenceRadius = 100,
   onGeofenceChange,
   centerLocation,
-  userLocations = []
+  userLocations = [],
 }) => {
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMapRef = useRef<L.Map | null>(null);
@@ -47,50 +48,61 @@ const Map: React.FC<MapProps> = ({
   const geofenceCircleRef = useRef<L.Circle | null>(null);
   const userMarkersRef = useRef<L.Marker[]>([]);
   const [mapInitialized, setMapInitialized] = useState(false);
-  
-  // Haversine formula to calculate distance between two lat/lng points
+
   const haversine = (lat1, lon1, lat2, lon2) => {
-    const R = 6371; // Radius of the Earth in km
+    const R = 6371;
     const dLat = (lat2 - lat1) * (Math.PI / 180);
     const dLon = (lon2 - lon1) * (Math.PI / 180);
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) *
+        Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c; // Distance in km
-    return distance * 1000; // Return distance in meters
+    return R * c * 1000;
   };
 
-  // Initialize map only once
   useEffect(() => {
     if (!mapRef.current || leafletMapRef.current) return;
-    
-    const defaultCenter = centerLocation 
-      ? [centerLocation.latitude, centerLocation.longitude] 
-      : [51.505, -0.09]; // Default to London
-    
+
+    const defaultCenter = centerLocation
+      ? [centerLocation.latitude, centerLocation.longitude]
+      : [17.520257, 78.365564]; // default: Hyderabad
+
     try {
       leafletMapRef.current = L.map(mapRef.current).setView(defaultCenter as [number, number], 13);
-      
+
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        attribution: '&copy; OpenStreetMap contributors',
       }).addTo(leafletMapRef.current);
-      
-      // Add location control
+
+      // ✅ Add working search bar using Leaflet-Control-Geocoder
+      if (L.Control.geocoder) {
+        const geocoderControl = L.Control.geocoder({
+          defaultMarkGeocode: true,
+          placeholder: 'Search location...',
+        })
+          .on('markgeocode', function (e: any) {
+            const center = e.geocode.center;
+            leafletMapRef.current?.setView(center, 16);
+          })
+          .addTo(leafletMapRef.current);
+      }
+
       leafletMapRef.current.locate({ setView: true, maxZoom: 16 });
-      
+
       leafletMapRef.current.on('locationfound', (e: L.LocationEvent) => {
         const latlng = e.latlng;
         const location = { latitude: latlng.lat, longitude: latlng.lng };
-        
-        // Update user marker
+
         if (userMarkerRef.current) {
           userMarkerRef.current.setLatLng(latlng);
         } else {
           userMarkerRef.current = L.marker(latlng, { draggable: isAdmin })
             .addTo(leafletMapRef.current!)
             .bindPopup('You are here');
-          
+
           if (isAdmin) {
             userMarkerRef.current.on('dragend', () => {
               const position = userMarkerRef.current?.getLatLng();
@@ -103,31 +115,30 @@ const Map: React.FC<MapProps> = ({
             });
           }
         }
-        // If admin mode, initialize geofence
+
         if (isAdmin && onGeofenceChange && !geofenceMarkerRef.current) {
           onGeofenceChange(location, geofenceRadius);
         }
       });
-      
+
       leafletMapRef.current.on('locationerror', (e: L.ErrorEvent) => {
         toast({
-          variant: "destructive",
-          title: "Location error",
+          variant: 'destructive',
+          title: 'Location error',
           description: e.message,
         });
       });
-      
+
       setMapInitialized(true);
     } catch (error) {
-      console.error("Error initializing map:", error);
+      console.error('Error initializing map:', error);
       toast({
-        variant: "destructive",
-        title: "Map error",
-        description: "Failed to initialize map",
+        variant: 'destructive',
+        title: 'Map error',
+        description: 'Failed to initialize map',
       });
     }
-    
-    // Cleanup function
+
     return () => {
       if (leafletMapRef.current) {
         leafletMapRef.current.remove();
@@ -138,42 +149,37 @@ const Map: React.FC<MapProps> = ({
         userMarkersRef.current = [];
       }
     };
-  }, []); // Empty dependency array ensures this runs only once
-  
-  // Update center and geofence without reinitializing map
+  }, []);
+
   useEffect(() => {
     if (!leafletMapRef.current || !centerLocation || !mapInitialized) return;
-    
+
     const map = leafletMapRef.current;
     const center = [centerLocation.latitude, centerLocation.longitude] as [number, number];
-    
-    // Update map center
+
     map.setView(center, map.getZoom(), { animate: true });
-    
-    // Update geofence circle
+
     if (showGeofence) {
-      // Changed geofence color to red for better visibility for students
       const geofenceColor = isAdmin ? '#0ea5e9' : '#ef4444';
       const geofenceFillOpacity = isAdmin ? 0.1 : 0.2;
-      
+
       if (geofenceCircleRef.current) {
         geofenceCircleRef.current.setLatLng(center);
         geofenceCircleRef.current.setRadius(geofenceRadius);
         geofenceCircleRef.current.setStyle({
           color: geofenceColor,
           fillColor: geofenceColor,
-          fillOpacity: geofenceFillOpacity
+          fillOpacity: geofenceFillOpacity,
         });
       } else {
         geofenceCircleRef.current = L.circle(center, {
           radius: geofenceRadius,
           color: geofenceColor,
           fillColor: geofenceColor,
-          fillOpacity: geofenceFillOpacity
+          fillOpacity: geofenceFillOpacity,
         }).addTo(map);
       }
-      
-      // Update geofence center marker (admin only)
+
       if (isAdmin && onGeofenceChange) {
         if (geofenceMarkerRef.current) {
           geofenceMarkerRef.current.setLatLng(center);
@@ -184,12 +190,12 @@ const Map: React.FC<MapProps> = ({
             iconSize: [20, 20],
             iconAnchor: [10, 10],
           });
-          
+
           geofenceMarkerRef.current = L.marker(center, {
             draggable: true,
-            icon: geofenceIcon
+            icon: geofenceIcon,
           }).addTo(map);
-          
+
           geofenceMarkerRef.current.on('dragend', () => {
             const position = geofenceMarkerRef.current?.getLatLng();
             if (position && onGeofenceChange) {
@@ -202,86 +208,80 @@ const Map: React.FC<MapProps> = ({
         }
       }
     } else {
-      // Remove geofence elements if not showing
       if (geofenceCircleRef.current) {
         geofenceCircleRef.current.remove();
         geofenceCircleRef.current = null;
       }
-      
+
       if (geofenceMarkerRef.current) {
         geofenceMarkerRef.current.remove();
         geofenceMarkerRef.current = null;
       }
     }
   }, [centerLocation, showGeofence, geofenceRadius, isAdmin, onGeofenceChange, mapInitialized]);
-  
-  // Update user markers without reinitializing map
+
   useEffect(() => {
     if (!leafletMapRef.current || !mapInitialized) return;
-    
+
     const map = leafletMapRef.current;
-    
-    // Clear existing markers
-    userMarkersRef.current.forEach(marker => marker.remove());
+
+    userMarkersRef.current.forEach((marker) => marker.remove());
     userMarkersRef.current = [];
-    
-    // Add new markers
-    userLocations.forEach(user => {
+
+    userLocations.forEach((user) => {
       if (!user.location) return;
-      
+
       const { latitude, longitude } = user.location;
-      
-      const color = user.role === 'student' ? '#0ea5e9' : 
-                   user.role === 'orgMember' ? '#10b981' : '#8b5cf6';
-      
+
+      const color =
+        user.role === 'student'
+          ? '#0ea5e9'
+          : user.role === 'orgMember'
+          ? '#10b981'
+          : '#8b5cf6';
+
       const userIcon = L.divIcon({
         html: `<div style="background-color: ${color}; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white;"></div>`,
         className: 'custom-div-icon',
         iconSize: [20, 20],
         iconAnchor: [10, 10],
       });
-      
+
       const marker = L.marker([latitude, longitude], { icon: userIcon })
         .addTo(map)
         .bindPopup(`<strong>${user.name}</strong><p>${user.role}</p>`);
-      
+
       userMarkersRef.current.push(marker);
     });
   }, [userLocations, mapInitialized]);
-  
-  // Check if user is inside geofence radius
+
   useEffect(() => {
     if (!centerLocation || !geofenceCircleRef.current) return;
-    
+
     const userLat = centerLocation.latitude;
     const userLon = centerLocation.longitude;
-    
     const adminLat = geofenceCircleRef.current.getLatLng().lat;
     const adminLon = geofenceCircleRef.current.getLatLng().lng;
-    const radius = geofenceRadius;
-    
     const distance = haversine(userLat, userLon, adminLat, adminLon);
-    
-    const isInsideGeofence = distance <= radius;
-    
+
+    const isInsideGeofence = distance <= geofenceRadius;
+
     if (isInsideGeofence) {
       toast({
-        variant: 'default',  // "default" for success or informational messages
+        variant: 'default',
         title: 'Inside Geofence',
         description: 'You are within the attendance area.',
       });
     } else {
       toast({
-        variant: 'destructive',  // "destructive" for error or warning messages
+        variant: 'destructive',
         title: 'Outside Geofence',
         description: 'You are outside the attendance area.',
       });
     }
   }, [centerLocation, geofenceRadius]);
-  
-  return (
-    <div ref={mapRef} style={{ height: '100vh', width: '100%' }} />
-  );
+
+  return <div ref={mapRef} style={{ height: '100vh', width: '100%' }} />;
 };
 
 export default Map;
