@@ -13,30 +13,32 @@ const TodayAttendance = () => {
   useEffect(() => {
     const fetchAttendance = async () => {
       console.log('Current user object:', user);
+    
       const token = localStorage.getItem('token');
-      console.log('Token being sent:', localStorage.token);
-
+      console.log('Token being sent:', token);
       console.log('Token exists?:', !!token);
-  
+    
       if (!token) {
         console.warn('No auth token found in localStorage.');
         return;
       }
-  
+    
       try {
         const response = await axios.get('http://localhost:5000/api/today-attendance', {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
+    
         setAttendance(response.data);
-        // console.log("renderes attendance"+attendance+"hi")
       } catch (err) {
+        console.error('API Error:', err.response?.status, err.response?.data);
         setError(err.response?.data?.error || 'Failed to load attendance');
       } finally {
         setLoading(false);
       }
     };
+    
   
     if (user?.id) {
       fetchAttendance();

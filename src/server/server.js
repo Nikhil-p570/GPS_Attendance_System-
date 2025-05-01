@@ -148,51 +148,49 @@ app.post('/api/login', async (req, res) => {
 // Get today's attendance status for all students
 app.get('/api/today-attendance', authenticateJWT, async (req, res) => {
   try {
-    // console.log('[DEBUG] Starting today-attendance endpoint');
-
-    if (!req.user) {
-      // console.error('[ERROR] req.user is undefined');
+    // 1. Ensure user is authenticated
+    if (!req.user || !req.user.id) {
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
     const adminId = req.user.id;
-    // console.log('[DEBUG] Admin ID:', adminId);
 
-    // Find admin by `id` field (UUID)
+    // 2. Find admin by _id or id (check your schema)
     const admin = await Admin.findOne({ id: adminId });
+
     if (!admin) {
-      // console.error('[ERROR] Admin not found');
       return res.status(404).json({ error: 'Admin not found' });
     }
 
-    console.log('[DEBUG] Found Admin:', admin);
+    // 3. Get associated student IDs
+    const studentIds = admin.studentIds || [];
 
-    const studentIds = admin.studentIds; // Array of student IDs
-    console.log('[DEBUG] Student IDs:', studentIds);
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
 
-    // Fetch all students whose _id matches any in studentIds array
+    // 4. Fetch students by _id
     const students = await Student.find({ _id: { $in: studentIds } });
 
-    // console.log('[DEBUG] Students fetched:', students);
-
+    // 5. Get today's date in YYYY-MM-DD format
     const today = new Date().toISOString().split('T')[0];
 
+    // 6. Map student data to attendance list
     const attendanceList = students.map(student => ({
       name: student.name || 'Unknown',
       date: today,
       status: student.attendanceStatus || 'absent'
     }));
 
-    console.log('[DEBUG] Attendance List:', attendanceList);
-
+    // 7. Respond with attendance
     res.json({
       success: true,
       data: attendanceList
     });
 
   } catch (error) {
-    // console.error('[ERROR] in today-attendance endpoint:', error);
-    res.status(500).json({ error: error.message });
+    console.error('[ERROR] in /api/today-attendance:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
